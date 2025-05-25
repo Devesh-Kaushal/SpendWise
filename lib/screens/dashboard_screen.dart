@@ -2,24 +2,22 @@
 // screens/dashboard_screen.dart
 import 'package:flutter/material.dart';
 import '../models/expense.dart';
-import '../widgets/budget_card.dart';
-import '../widgets/stat_card.dart';
-import '../widgets/expense_card.dart';
-import '../widgets/empty_state.dart';
+import '../widgets/premium_budget_card.dart';
+import '../widgets/quick_stats_row.dart';
+import '../widgets/recent_expenses_section.dart';
+import '../widgets/premium_app_bar.dart';
 
 class DashboardScreen extends StatefulWidget {
   final List<Expense> expenses;
   final double monthlyBudget;
   final Function(double) onUpdateBudget;
   final Function(Expense) onDeleteExpense;
-  final VoidCallback onNavigateToExpenses;
 
   DashboardScreen({
     required this.expenses,
     required this.monthlyBudget,
     required this.onUpdateBudget,
     required this.onDeleteExpense,
-    required this.onNavigateToExpenses,
   });
 
   @override
@@ -28,25 +26,40 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen>
     with TickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
+  late AnimationController _controller;
+  late List<AnimationController> _cardControllers;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      duration: Duration(milliseconds: 1000),
+    _controller = AnimationController(
+      duration: Duration(milliseconds: 1200),
       vsync: this,
     );
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    _cardControllers = List.generate(
+      4,
+          (index) => AnimationController(
+        duration: Duration(milliseconds: 600),
+        vsync: this,
+      ),
     );
-    _animationController.forward();
+    _startAnimations();
+  }
+
+  void _startAnimations() async {
+    _controller.forward();
+    for (int i = 0; i < _cardControllers.length; i++) {
+      await Future.delayed(Duration(milliseconds: 100));
+      _cardControllers[i].forward();
+    }
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _controller.dispose();
+    for (var controller in _cardControllers) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -54,129 +67,79 @@ class _DashboardScreenState extends State<DashboardScreen>
     return widget.expenses.fold(0.0, (sum, expense) => sum + expense.amount);
   }
 
-  List<Expense> get recentExpenses {
-    final sorted = List<Expense>.from(widget.expenses);
-    sorted.sort((a, b) => b.date.compareTo(a.date));
-    return sorted.take(5).toList();
-  }
-
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'morning';
-    if (hour < 17) return 'afternoon';
-    return 'evening';
-  }
-
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: SingleChildScrollView(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Welcome Header
-            Container(
-              padding: EdgeInsets.symmetric(vertical: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Good ${_getGreeting()}!',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w300,
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+    return CustomScrollView(
+      physics: BouncingScrollPhysics(),
+      slivers: [
+        PremiumAppBar(),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.all(20),
+            child: Column(
+              children: [
+                // Budget Card with Animation
+                SlideTransition(
+                  position: Tween<Offset>(
+                    begin: Offset(0, 0.5),
+                    end: Offset.zero,
+                  ).animate(CurvedAnimation(
+                    parent: _cardControllers[0],
+                    curve: Curves.easeOutCubic,
+                  )),
+                  child: FadeTransition(
+                    opacity: _cardControllers[0],
+                    child: PremiumBudgetCard(
+                      monthlyBudget: widget.monthlyBudget,
+                      totalExpenses: totalExpenses,
+                      onUpdateBudget: widget.onUpdateBudget,
                     ),
                   ),
-                  Text(
-                    'Track your expenses',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.onSurface,
+                ),
+                SizedBox(height: 24),
+
+                // Quick Stats
+                SlideTransition(
+                  position: Tween<Offset>(
+                    begin: Offset(0, 0.5),
+                    end: Offset.zero,
+                  ).animate(CurvedAnimation(
+                    parent: _cardControllers[1],
+                    curve: Curves.easeOutCubic,
+                  )),
+                  child: FadeTransition(
+                    opacity: _cardControllers[1],
+                    child: QuickStatsRow(
+                      expenses: widget.expenses,
+                      totalExpenses: totalExpenses,
                     ),
                   ),
-                ],
-              ),
-            ),
-            SizedBox(height: 20),
+                ),
+                SizedBox(height: 32),
 
-            // Budget Overview Card
-            BudgetCard(
-              monthlyBudget: widget.monthlyBudget,
-              totalExpenses: totalExpenses,
-              onUpdateBudget: widget.onUpdateBudget,
-            ),
-            SizedBox(height: 24),
-
-            // Quick Stats
-            Row(
-              children: [
-                Expanded(
-                  child: StatCard(
-                    icon: Icons.trending_up,
-                    title: 'Total Spent',
-                    value: '₹${totalExpenses.toStringAsFixed(0)}',
-                    color: Colors.blue,
+                // Recent Expenses
+                SlideTransition(
+                  position: Tween<Offset>(
+                    begin: Offset(0, 0.3),
+                    end: Offset.zero,
+                  ).animate(CurvedAnimation(
+                    parent: _cardControllers[2],
+                    curve: Curves.easeOutCubic,
+                  )),
+                  child: FadeTransition(
+                    opacity: _cardControllers[2],
+                    child: RecentExpensesSection(
+                      expenses: widget.expenses,
+                      onDeleteExpense: widget.onDeleteExpense,
+                    ),
                   ),
                 ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: StatCard(
-                    icon: Icons.receipt_long,
-                    title: 'Transactions',
-                    value: '${widget.expenses.length}',
-                    color: Colors.green,
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: StatCard(
-                    icon: Icons.calendar_today,
-                    title: 'Daily Avg',
-                    value: '₹${(totalExpenses / 30).toStringAsFixed(0)}',
-                    color: Colors.orange,
-                  ),
-                ),
+                SizedBox(height: 100), // Space for FAB
               ],
             ),
-            SizedBox(height: 24),
-
-            // Recent Expenses
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Recent Expenses',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                ),
-                if (widget.expenses.isNotEmpty)
-                  TextButton(
-                    onPressed: widget.onNavigateToExpenses,
-                    child: Text('View All'),
-                  ),
-              ],
-            ),
-            SizedBox(height: 12),
-            recentExpenses.isEmpty
-                ? EmptyState()
-                : Column(
-              children: recentExpenses
-                  .map((expense) => ExpenseCard(
-                expense: expense,
-                onDelete: widget.onDeleteExpense,
-              ))
-                  .toList(),
-            ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }

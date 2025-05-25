@@ -1,38 +1,57 @@
-
 // screens/home_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/expense.dart';
-import '../utils/constants.dart';
 import 'dashboard_screen.dart';
 import 'expenses_screen.dart';
 import 'analytics_screen.dart';
-import 'settings_screen.dart';
-import '../widgets/add_expense_form.dart';
+import 'profile_screen.dart';
+import '../widgets/premium_fab.dart';
+import '../widgets/custom_bottom_nav.dart';
+import '../widgets/premium_expense_form.dart';
 
 class HomeScreen extends StatefulWidget {
-  final Function(ThemeMode) onThemeChanged;
-
-  HomeScreen({required this.onThemeChanged});
-
   @override
   _HomeScreenState createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen>
+    with TickerProviderStateMixin {
   List<Expense> expenses = [];
   double monthlyBudget = 5000.0;
   int selectedIndex = 0;
+  late PageController _pageController;
+  late AnimationController _fabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+    _fabController = AnimationController(
+      duration: Duration(milliseconds: 300),
+      vsync: this,
+    );
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _fabController.dispose();
+    super.dispose();
+  }
 
   void _addExpense(Expense expense) {
     setState(() {
       expenses.add(expense);
     });
+    HapticFeedback.lightImpact();
   }
 
   void _deleteExpense(Expense expense) {
     setState(() {
       expenses.remove(expense);
     });
+    HapticFeedback.mediumImpact();
   }
 
   void _updateBudget(double budget) {
@@ -41,124 +60,66 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _showAddExpenseForm() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => AddExpenseForm(
-        onAddExpense: _addExpense,
-      ),
+  void _onTabSelected(int index) {
+    setState(() {
+      selectedIndex = index;
+    });
+    _pageController.animateToPage(
+      index,
+      duration: Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
     );
+    HapticFeedback.selectionClick();
   }
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget> screens = [
-      DashboardScreen(
-        expenses: expenses,
-        monthlyBudget: monthlyBudget,
-        onUpdateBudget: _updateBudget,
-        onDeleteExpense: _deleteExpense,
-        onNavigateToExpenses: () => setState(() => selectedIndex = 1),
-      ),
-      ExpensesScreen(
-        expenses: expenses,
-        onDeleteExpense: _deleteExpense,
-      ),
-      AnalyticsScreen(expenses: expenses),
-      SettingsScreen(onThemeChanged: widget.onThemeChanged),
-    ];
-
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      appBar: AppBar(
-        title: Text(
-          'ExpenseTracker',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 24,
+      backgroundColor: Theme.of(context).colorScheme.background,
+      extendBody: true,
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (index) {
+          setState(() {
+            selectedIndex = index;
+          });
+        },
+        children: [
+          DashboardScreen(
+            expenses: expenses,
+            monthlyBudget: monthlyBudget,
+            onUpdateBudget: _updateBudget,
+            onDeleteExpense: _deleteExpense,
           ),
-        ),
-        backgroundColor: Colors.transparent,
+          ExpensesScreen(
+            expenses: expenses,
+            onDeleteExpense: _deleteExpense,
+          ),
+          AnalyticsScreen(expenses: expenses),
+          ProfileScreen(),
+        ],
       ),
-      body: IndexedStack(
-        index: selectedIndex,
-        children: screens,
+      bottomNavigationBar: CustomBottomNav(
+        selectedIndex: selectedIndex,
+        onTabSelected: _onTabSelected,
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Theme.of(context).shadowColor.withOpacity(0.1),
-              blurRadius: 20,
-              offset: Offset(0, -5),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
-          child: BottomNavigationBar(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            currentIndex: selectedIndex,
-            onTap: (index) => setState(() => selectedIndex = index),
-            selectedItemColor: Theme.of(context).colorScheme.primary,
-            unselectedItemColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-            type: BottomNavigationBarType.fixed,
-            items: [
-              BottomNavigationBarItem(
-                icon: Icon(Icons.dashboard_rounded),
-                label: 'Dashboard',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.list_rounded),
-                label: 'Expenses',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.pie_chart_rounded),
-                label: 'Analytics',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.settings_rounded),
-                label: 'Settings',
-              ),
-            ],
-          ),
-        ),
-      ),
-      floatingActionButton: selectedIndex < 3 ? Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Theme.of(context).colorScheme.primary,
-              Theme.of(context).colorScheme.primary.withOpacity(0.8),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
-              blurRadius: 15,
-              offset: Offset(0, 5),
-            ),
-          ],
-        ),
-        child: FloatingActionButton(
-          onPressed: _showAddExpenseForm,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          child: Icon(Icons.add, color: Colors.white, size: 28),
-        ),
+      floatingActionButton: selectedIndex < 3 ? PremiumFAB(
+        onPressed: () => _showAddExpenseModal(),
+        controller: _fabController,
       ) : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+    );
+  }
+
+  void _showAddExpenseModal() {
+    HapticFeedback.mediumImpact();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => PremiumExpenseForm(
+        onAddExpense: _addExpense,
+      ),
     );
   }
 }

@@ -7,6 +7,9 @@ class Expense {
   final String category;
   final DateTime date;
   final String description;
+  final String? imageUrl;
+  final bool isRecurring;
+  final List<String> tags;
 
   Expense({
     required this.id,
@@ -14,6 +17,9 @@ class Expense {
     required this.amount,
     required this.category,
     required this.date,
-    required this.description,
+    this.description = '',
+    this.imageUrl,
+    this.isRecurring = false,
+    this.tags = const [],
   });
 }
